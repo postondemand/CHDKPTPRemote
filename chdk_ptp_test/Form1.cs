@@ -3,278 +3,310 @@
 // (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
-using System.Linq;
-using System.Text;
-using System.Windows.Forms;
-using System.IO;
-using LibUsbDotNet;
-using CHDKPTP;
-using CHDKPTPRemote;
-
 namespace chdk_ptp_test
 {
+    using System;
+    using System.Drawing;
+    using System.Drawing.Drawing2D;
+    using System.IO;
+    using System.Windows.Forms;
+
+    using CHDKPTP;
+
+    using CHDKPTPRemote;
+
+    using LibUsbDotNet;
+
     public partial class Form1 : Form
     {
-        private bool connected = false;
-        private CHDKPTPDevice connected_device = null;
-        private Session session = null;
-        private Bitmap live_image = null;
-        private Bitmap live_overlay = null;
-        private StreamWriter Log;
+        private bool connected;
+
+        private CHDKPTPDevice connected_device;
+
         private int display_width, display_height;
+
+        private readonly Bitmap live_image = null;
+
+        private readonly Bitmap live_overlay = null;
+
+        private readonly StreamWriter Log;
+
+        private Session session;
+
+        public Form1()
+        {
+            this.InitializeComponent();
+            this.Log = File.AppendText("chdk_ptp_test.log");
+            this.LogLine("=== program started ===");
+            UsbDevice.UsbErrorEvent += this.UsbDevice_UsbErrorEvent;
+        }
 
         private void refresh_camera_list()
         {
-            LogLine("refreshing camera list...");
-            devicecombobox.Items.Clear();
-            devicecombobox.Text = "<select a device>";
+            this.LogLine("refreshing camera list...");
+            this.devicecombobox.Items.Clear();
+            this.devicecombobox.Text = "<select a device>";
 
             try
             {
-                foreach (CHDKPTPDevice dev in Session.ListDevices(false))
+                foreach (var dev in Session.ListDevices(false))
                 {
-                    LogLine("found device: " + dev.Name + (dev.CHDKSupported ? " (CHDK PTP supported)" : dev.PTPSupported ? " (PTP supported)" : ""));
+                    this.LogLine(
+                        "found device: " + dev.Name
+                        + (dev.CHDKSupported ? " (CHDK PTP supported)" : dev.PTPSupported ? " (PTP supported)" : ""));
                     if (dev.PTPSupported && !dev.CHDKSupported && dev.CHDKVersionMajor != -1)
-                        LogLine("CHDK version: " + dev.CHDKVersionMajor + "." + dev.CHDKVersionMinor);
+                    {
+                        this.LogLine("CHDK version: " + dev.CHDKVersionMajor + "." + dev.CHDKVersionMinor);
+                    }
                     if (dev.CHDKSupported)
-                        devicecombobox.Items.Add(dev);
+                    {
+                        this.devicecombobox.Items.Add(dev);
+                    }
                 }
-                LogLine("done.");
+                this.LogLine("done.");
             }
             catch (Exception ex)
             {
-                LogLine("exception: " + ex.Message + Environment.NewLine + ex.StackTrace.ToString());
-                MessageBox.Show("could not open PTP session: " + ex.Message + "\n\n" + ex.StackTrace.ToString());
+                this.LogLine("exception: " + ex.Message + Environment.NewLine + ex.StackTrace);
+                MessageBox.Show("could not open PTP session: " + ex.Message + "\n\n" + ex.StackTrace);
             }
         }
 
         private void LogLine(string s)
         {
-            Log.WriteLine(s);
-            Log.Flush();
+            this.Log.WriteLine(s);
+            this.Log.Flush();
         }
 
         private void UsbDevice_UsbErrorEvent(object sender, UsbError e)
         {
-            LogLine("usb error: " + e.ToString());
-            MessageBox.Show("UsbError: " + e.ToString());
-        }
-
-        public Form1()
-        {
-            InitializeComponent();
-            Log = File.AppendText("chdk_ptp_test.log");
-            LogLine("=== program started ===");
-            UsbDevice.UsbErrorEvent += new EventHandler<UsbError>(UsbDevice_UsbErrorEvent);
+            this.LogLine("usb error: " + e);
+            MessageBox.Show("UsbError: " + e);
         }
 
         ~Form1()
         {
-            LogLine("closing...");
+            this.LogLine("closing...");
             UsbDevice.Exit();
-            LogLine("=== program ended ===");
+            this.LogLine("=== program ended ===");
         }
 
         private void refreshbutton_Click(object sender, EventArgs e)
         {
-            refresh_camera_list();
+            this.refresh_camera_list();
         }
 
         private void connectbutton_Click(object sender, EventArgs e)
         {
-            if (connected)
+            if (this.connected)
             {
                 MessageBox.Show("Already opened a device!", "Error");
                 return;
             }
 
-            if (devicecombobox.SelectedItem == null)
+            if (this.devicecombobox.SelectedItem == null)
             {
                 MessageBox.Show("No device selected!", "Error");
                 return;
             }
 
-            connected_device = devicecombobox.SelectedItem as CHDKPTPDevice;
+            this.connected_device = this.devicecombobox.SelectedItem as CHDKPTPDevice;
 
-            LogLine("opening device: " + connected_device.Name);
+            this.LogLine("opening device: " + this.connected_device.Name);
             try
             {
-                session = new Session(connected_device);
-                session.Connect();
+                this.session = new Session(this.connected_device);
+                this.session.Connect();
             }
             catch (Exception ex)
             {
-                LogLine("exception: " + ex.Message + Environment.NewLine + ex.StackTrace.ToString());
-                connected = false;
-                connected_device = null;
-                session = null;
-                MessageBox.Show("could not open PTP session: " + ex.Message + "\n\n" + ex.StackTrace.ToString());
+                this.LogLine("exception: " + ex.Message + Environment.NewLine + ex.StackTrace);
+                this.connected = false;
+                this.connected_device = null;
+                this.session = null;
+                MessageBox.Show("could not open PTP session: " + ex.Message + "\n\n" + ex.StackTrace);
                 return;
             }
-            LogLine("connected.");
-            connected = true;
-            statuslabel.Text = "Connected to: " + connected_device.ToString();
+            this.LogLine("connected.");
+            this.connected = true;
+            this.statuslabel.Text = "Connected to: " + this.connected_device;
         }
 
         private void disconnectbutton_Click(object sender, EventArgs e)
         {
-            if (connected)
+            if (this.connected)
             {
-                LogLine("closing connection...");
+                this.LogLine("closing connection...");
                 try
                 {
-                    session.Disconnect();
+                    this.session.Disconnect();
                 }
                 catch (Exception ex)
                 {
-                    LogLine("exception: " + ex.Message + Environment.NewLine + ex.StackTrace.ToString());
+                    this.LogLine("exception: " + ex.Message + Environment.NewLine + ex.StackTrace);
                 }
 
-                LogLine("closed.");
-                statuslabel.Text = "Not connected";
-                connected_device = null;
-                connected = false;
+                this.LogLine("closed.");
+                this.statuslabel.Text = "Not connected";
+                this.connected_device = null;
+                this.connected = false;
             }
         }
 
         private void getimagebutton_Click(object sender, EventArgs e)
         {
-            if (!connected)
+            if (!this.connected)
+            {
                 return;
+            }
         }
 
         private void recordbutton_Click(object sender, EventArgs e)
         {
-            if (!connected)
+            if (!this.connected)
+            {
                 return;
+            }
 
-            LogLine("switching to record mode...");
+            this.LogLine("switching to record mode...");
             try
             {
-                session.ExecuteScript("switch_mode_usb(1)");
+                this.session.ExecuteScript("switch_mode_usb(1)");
             }
             catch (Exception ex)
             {
-                LogLine("exception: " + ex.Message + Environment.NewLine + ex.StackTrace.ToString());
-                MessageBox.Show("could not switch to record mode: " + ex.Message + "\n\n" + ex.StackTrace.ToString());
+                this.LogLine("exception: " + ex.Message + Environment.NewLine + ex.StackTrace);
+                MessageBox.Show("could not switch to record mode: " + ex.Message + "\n\n" + ex.StackTrace);
                 return;
             }
-            LogLine("done.");
+            this.LogLine("done.");
         }
 
         private void playbackbutton_Click(object sender, EventArgs e)
         {
-            if (!connected)
+            if (!this.connected)
+            {
                 return;
+            }
 
-            LogLine("switching to playback mode...");
+            this.LogLine("switching to playback mode...");
             try
             {
-                session.ExecuteScript("switch_mode_usb(0)");
+                this.session.ExecuteScript("switch_mode_usb(0)");
             }
             catch (Exception ex)
             {
-                LogLine("exception: " + ex.Message + Environment.NewLine + ex.StackTrace.ToString());
-                MessageBox.Show("could not switch to playback mode: " + ex.Message + "\n\n" + ex.StackTrace.ToString());
+                this.LogLine("exception: " + ex.Message + Environment.NewLine + ex.StackTrace);
+                MessageBox.Show("could not switch to playback mode: " + ex.Message + "\n\n" + ex.StackTrace);
                 return;
             }
-            LogLine("done.");
+            this.LogLine("done.");
         }
 
         private void shutdownbutton_Click(object sender, EventArgs e)
         {
-            if (!connected)
+            if (!this.connected)
+            {
                 return;
+            }
 
-            LogLine("shutting camera down... (may result in exceptions due to loss of connection)");
+            this.LogLine("shutting camera down... (may result in exceptions due to loss of connection)");
             try
             {
-                session.ExecuteScript("shut_down()");
+                this.session.ExecuteScript("shut_down()");
             }
             catch (Exception ex)
             {
-                LogLine("exception: " + ex.Message + Environment.NewLine + ex.StackTrace.ToString());
+                this.LogLine("exception: " + ex.Message + Environment.NewLine + ex.StackTrace);
             }
-            disconnectbutton.PerformClick();
-            LogLine("shut down complete.");
+            this.disconnectbutton.PerformClick();
+            this.LogLine("shut down complete.");
         }
 
         private void execbutton_Click(object sender, EventArgs e)
         {
-            if (!connected)
+            if (!this.connected)
+            {
                 return;
+            }
 
-            LogLine("executing script: " + scriptedit.Text);
+            this.LogLine("executing script: " + this.scriptedit.Text);
             try
             {
-                object r = session.ExecuteScript(scriptedit.Text);
+                var r = this.session.ExecuteScript(this.scriptedit.Text);
                 if (r == null)
                 {
-                    outputlabel.Text = "(none)";
+                    this.outputlabel.Text = "(none)";
                 }
                 else if (r.GetType() == typeof(bool))
                 {
-                    outputlabel.Text = r.ToString();
+                    this.outputlabel.Text = r.ToString();
                 }
                 else if (r.GetType() == typeof(int))
                 {
-                    outputlabel.Text = r.ToString();
+                    this.outputlabel.Text = r.ToString();
                 }
                 else if (r.GetType() == typeof(string))
                 {
-                    outputlabel.Text = (string)r;
+                    this.outputlabel.Text = (string)r;
                 }
                 else
                 {
-                    outputlabel.Text = "(unsupported type)";
+                    this.outputlabel.Text = "(unsupported type)";
                 }
             }
             catch (Exception ex)
             {
-                LogLine("exception: " + ex.Message + Environment.NewLine + ex.StackTrace.ToString());
-                outputlabel.Text = ex.Message;
+                this.LogLine("exception: " + ex.Message + Environment.NewLine + ex.StackTrace);
+                this.outputlabel.Text = ex.Message;
             }
-            LogLine("done.");
+            this.LogLine("done.");
         }
 
         private void scriptedit_KeyPress(object sender, KeyPressEventArgs e)
         {
             if (e.KeyChar == '\n')
             {
-                execbutton.PerformClick();
+                this.execbutton.PerformClick();
             }
         }
 
         private void overlaybutton_Click(object sender, EventArgs e)
         {
-            if (!connected)
+            if (!this.connected)
+            {
                 return;
+            }
         }
 
         private void Form1_Paint(object sender, PaintEventArgs e)
         {
-            if (live_image != null)
+            if (this.live_image != null)
             {
-                e.Graphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
-                e.Graphics.DrawImage(live_image, getimagebutton.Left, getimagebutton.Bottom + 10, display_width, display_height);
+                e.Graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                e.Graphics.DrawImage(
+                    this.live_image,
+                    this.getimagebutton.Left,
+                    this.getimagebutton.Bottom + 10,
+                    this.display_width,
+                    this.display_height);
             }
-            if (live_overlay != null)
+            if (this.live_overlay != null)
             {
-                e.Graphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
-                e.Graphics.DrawImage(live_overlay, getimagebutton.Left, getimagebutton.Bottom + 10, display_width, display_height);
+                e.Graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                e.Graphics.DrawImage(
+                    this.live_overlay,
+                    this.getimagebutton.Left,
+                    this.getimagebutton.Bottom + 10,
+                    this.display_width,
+                    this.display_height);
             }
         }
 
         private void Form1_Load(object sender, EventArgs e)
         {
             // TODO: Load doesn't seem the right place as we don't get usb error messages here
-            refresh_camera_list();
+            this.refresh_camera_list();
         }
-
     }
 }

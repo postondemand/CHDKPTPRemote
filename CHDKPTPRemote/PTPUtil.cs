@@ -3,48 +3,52 @@
 // (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using LibUsbDotNet;
-using LibUsbDotNet.Main;
-using LibUsbDotNet.Descriptors;
-using LibUsbDotNet.Info;
-
 namespace PTP
 {
+    using System;
+    using System.Collections.Generic;
+
+    using LibUsbDotNet;
+    using LibUsbDotNet.Descriptors;
+    using LibUsbDotNet.Main;
+
     public static class PTPUtil
     {
-        public static List<PTPDevice> FindDevices(bool only_supported = true, Func<UsbDevice,PTPDevice> constr = null)
+        public static List<PTPDevice> FindDevices(bool only_supported = true, Func<UsbDevice, PTPDevice> constr = null)
         {
-            List<PTPDevice> l = new List<PTPDevice>();
+            var l = new List<PTPDevice>();
 
             if (constr == null)
+            {
                 constr = x => new PTPDevice(x);
+            }
 
             foreach (UsbRegistry reg in UsbDevice.AllDevices)
             {
                 UsbDevice dev;
                 if (reg.Open(out dev))
                 {
-                    PTPDevice ptpdev = constr(dev);
+                    var ptpdev = constr(dev);
 
-                    for (int i = 0; i < dev.Configs.Count; i++)
+                    for (var i = 0; i < dev.Configs.Count; i++)
                     {
-                        UsbConfigInfo config_info = dev.Configs[i];
+                        var config_info = dev.Configs[i];
 
-                        foreach (UsbInterfaceInfo interface_info in config_info.InterfaceInfoList)
+                        foreach (var interface_info in config_info.InterfaceInfoList)
                         {
                             if (interface_info.Descriptor.Class == ClassCodeType.Ptp)
                             {
-                                bool rid_set = false;
-                                bool wid_set = false;
+                                var rid_set = false;
+                                var wid_set = false;
 
-                                foreach (UsbEndpointInfo endpoint_info in interface_info.EndpointInfoList)
+                                foreach (var endpoint_info in interface_info.EndpointInfoList)
                                 {
                                     // BULK and assumed MaxPacketSize
-                                    if ((endpoint_info.Descriptor.Attributes & 0x03) != 0x02 || endpoint_info.Descriptor.MaxPacketSize != 512)
+                                    if ((endpoint_info.Descriptor.Attributes & 0x03) != 0x02
+                                        || endpoint_info.Descriptor.MaxPacketSize != 512)
+                                    {
                                         continue;
+                                    }
 
                                     if ((endpoint_info.Descriptor.EndpointID & 0x80) == 0)
                                     {
@@ -67,7 +71,9 @@ namespace PTP
                                 }
                             }
                             if (ptpdev.PTPSupported)
+                            {
                                 break;
+                            }
                         }
                     }
 

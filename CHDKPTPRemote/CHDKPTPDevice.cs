@@ -3,35 +3,35 @@
 // (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-using LibUsbDotNet;
-using PTP;
-
 namespace CHDKPTP
 {
+    using LibUsbDotNet;
+
+    using PTP;
+
     public class CHDKPTPDevice : PTPDevice
     {
-        public int CHDKVersionMajor;
-        public int CHDKVersionMinor;
         public bool CHDKSupported;
+
+        public int CHDKVersionMajor;
+
+        public int CHDKVersionMinor;
 
         public CHDKPTPDevice(UsbDevice dev)
             : base(dev)
         {
-            CHDKVersionMajor = -1;
-            CHDKVersionMinor = -1;
-            CHDKSupported = false;
+            this.CHDKVersionMajor = -1;
+            this.CHDKVersionMinor = -1;
+            this.CHDKSupported = false;
         }
 
         public override string ToString()
         {
-            if (CHDKVersionMajor != -1 && CHDKVersionMinor != -1)
+            if (this.CHDKVersionMajor != -1 && this.CHDKVersionMinor != -1)
             {
-                return base.ToString() + " (CHDK PTP v" + CHDKVersionMajor + "." + CHDKVersionMinor + ")";
+                return base.ToString() + " (CHDK PTP v" + this.CHDKVersionMajor + "." + this.CHDKVersionMinor + ")";
             }
-            else
-            {
-                return base.ToString();
-            }
+            return base.ToString();
         }
     }
 }

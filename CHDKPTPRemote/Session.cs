@@ -3,40 +3,41 @@
 // (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-using System;
-using System.Collections.Generic;
-using System.Text;
-using System.Drawing;
-using System.IO;
-using LibUsbDotNet; // XXX needed for call to CHDKPTPUtil.FindDevices
-using CHDKPTP;
+// XXX needed for call to CHDKPTPUtil.FindDevices
 
 namespace CHDKPTPRemote
 {
+    using System;
+    using System.Collections.Generic;
+    using System.Text;
+    using System.Threading;
+
+    using CHDKPTP;
+
     public class Session
     {
+        private readonly CHDKPTPSession _session;
+
+        public Session(CHDKPTPDevice dev)
+        {
+            this._session = new CHDKPTPSession(dev);
+        }
+
         public static List<CHDKPTPDevice> ListDevices(bool only_supported = true)
         {
             return CHDKPTPUtil.FindDevices(only_supported);
         }
 
-        private CHDKPTPSession _session;
-
-        public Session(CHDKPTPDevice dev)
-        {
-            _session = new CHDKPTPSession(dev);
-        }
-
         public void Connect()
         {
-            _session.device.Open();
+            this._session.device.Open();
             try
             {
-                _session.OpenSession();
+                this._session.OpenSession();
             }
             catch (Exception e)
             {
-                _session.device.Close();
+                this._session.device.Close();
                 throw e;
             }
         }
@@ -45,14 +46,14 @@ namespace CHDKPTPRemote
         {
             try
             {
-                _session.CloseSession();
+                this._session.CloseSession();
             }
             catch (Exception)
             {
             }
             finally
             {
-                _session.device.Close();
+                this._session.device.Close();
             }
         }
 
@@ -64,13 +65,17 @@ namespace CHDKPTPRemote
             byte[] data;
             while (true)
             {
-                _session.CHDK_ReadScriptMsg(out type, out subtype, out script_id2, out data);
+                this._session.CHDK_ReadScriptMsg(out type, out subtype, out script_id2, out data);
 
                 if (type == CHDK_ScriptMsgType.PTP_CHDK_S_MSGTYPE_NONE) // no more messages; no return value
+                {
                     return null;
+                }
 
                 if (script_id2 != script_id) // ignore message from other scripts
+                {
                     continue;
+                }
 
                 if (!get_error && type == CHDK_ScriptMsgType.PTP_CHDK_S_MSGTYPE_RET) // return info!
                 {
@@ -82,11 +87,12 @@ namespace CHDKPTPRemote
                             return data[0] | (data[1] << 8) | (data[2] << 16) | (data[3] << 24);
                         case CHDK_ScriptDataType.PTP_CHDK_TYPE_STRING:
                             if (return_string_as_byte_array)
+                            {
                                 return data;
-                            else
-                                return (new ASCIIEncoding()).GetString(data);
+                            }
+                            return new ASCIIEncoding().GetString(data);
                         default:
-                            throw new Exception("script returned unsupported data type: " + type.ToString());
+                            throw new Exception("script returned unsupported data type: " + type);
                     }
                 }
 
@@ -94,12 +100,9 @@ namespace CHDKPTPRemote
                 {
                     if (get_error)
                     {
-                        return (new ASCIIEncoding()).GetString(data);
+                        return new ASCIIEncoding().GetString(data);
                     }
-                    else
-                    {
-                        throw new Exception("error running script: " + (new ASCIIEncoding()).GetString(data));
-                    }
+                    throw new Exception("error running script: " + new ASCIIEncoding().GetString(data));
                 }
 
                 // ignore other (user) messages
@@ -111,43 +114,40 @@ namespace CHDKPTPRemote
         {
             int script_id;
             CHDK_ScriptErrorType status;
-            _session.CHDK_ExecuteScript(script, CHDK_ScriptLanguage.PTP_CHDK_SL_LUA, out script_id, out status);
+            this._session.CHDK_ExecuteScript(script, CHDK_ScriptLanguage.PTP_CHDK_SL_LUA, out script_id, out status);
 
             if (status == CHDK_ScriptErrorType.PTP_CHDK_S_ERRTYPE_COMPILE)
             {
-                object msg = GetScriptMessage(script_id, false, true);
+                var msg = this.GetScriptMessage(script_id, false, true);
                 if (msg.GetType() == typeof(string))
                 {
                     throw new Exception("script compilation error: " + (string)msg);
                 }
-                else
-                {
-                    throw new Exception("script compilation error (unknown reason)");
-                }
+                throw new Exception("script compilation error (unknown reason)");
             }
 
             // wait for end
             while (true)
             {
                 CHDK_ScriptStatus flags;
-                _session.CHDK_ScriptStatus(out flags);
+                this._session.CHDK_ScriptStatus(out flags);
                 if (!flags.HasFlag(CHDK_ScriptStatus.PTP_CHDK_SCRIPT_STATUS_RUN))
                 {
                     break;
                 }
 
-                System.Threading.Thread.Sleep(100);
+                Thread.Sleep(100);
             }
 
             // get result
-            return GetScriptMessage(script_id, return_string_as_byte_array);
+            return this.GetScriptMessage(script_id, return_string_as_byte_array);
         }
 
         public byte[] DownloadFile(string filename)
         {
             byte[] buf;
 
-            _session.CHDK_DownloadFile(filename, out buf);
+            this._session.CHDK_DownloadFile(filename, out buf);
 
             return buf;
         }
