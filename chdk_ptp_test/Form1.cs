@@ -23,7 +23,9 @@ namespace chdk_ptp_test
 
         private CHDKPTPDevice connected_device;
 
-        private int display_width, display_height;
+        private int display_width;
+        
+        private int display_height;
 
         private readonly Bitmap live_image = null;
 
